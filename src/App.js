@@ -51,33 +51,7 @@ class App extends Component {
           }), 
           take(1)))
       ).subscribe(()=>{});
-      /*
-      const titleBarMousedown$ = fromEvent(document.querySelector('#titleBar'), 'mousedown');
-      const mousemove$ = fromEvent(window, 'mousemove');
-      const mouseup$ = fromEvent(window, 'mouseup');
-      console.log(titleBarMousedown$);
-      this.titleBarObserver =  titleBarMousedown$.pipe(
-        map((e)=>({
-          windowX: window.screenLeft,
-          windowY: window.screenTop,
-          screenX: e.screenX,
-          screenY: e.screenY,
-        })),
-        concatMapTo(
-          mousemove$.pipe(
-            takeUntil(mouseup$)
-          ),
-          (down, move) => ({down ,move})
-        ),
-      ).subscribe((e)=>{
-        // const dx = down.clientX 
-        const x = e.down.windowX + (e.move.screenX - e.down.screenX);
-        const y = e.down.windowY + (e.move.screenY - e.down.screenY)
-        electron.remote.getCurrentWindow().setPosition(x, y)
-        console.log(e);
-      });
-      */
-
+      
     
 
 
@@ -122,7 +96,7 @@ class App extends Component {
         top: pointer.y,
         fontSize: 12,
         fontFamily: 'sans-serif',
-        backgroundColor: 'rgba(255, 0, 0, 0.3)',
+        backgroundColor: 'rgba(255, 0, 0, 0.8)',
         fontWeight: 'bold'
       })
       canvas.add(line);
@@ -310,8 +284,6 @@ class App extends Component {
                 </ButtonGroup>
                 :
                 <Button onClick={this.shoot} type="primary">screenshot</Button>}
-                
-              
             </div> 
             :
             <div style={{display: 'flex', padding: 10, alignItems: 'center', justifyContent: 'flex-end',  backgroundColor: 'rgba(0, 0, 0, 0.4)'  }}>  

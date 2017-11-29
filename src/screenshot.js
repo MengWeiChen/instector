@@ -58,7 +58,7 @@ export const fullscreenScreenshot = (callback, imageFormat) => {
         for (let i = 0; i < sources.length; ++i) {
             console.log(sources);
             // Filter: main screen
-            if (sources[i].name === "Entire screen") {
+            if (sources[i].name === "Entire screen" || i == 0) {
                 navigator.webkitGetUserMedia({
                     audio: false,
                     video: {
@@ -76,6 +76,7 @@ export const fullscreenScreenshot = (callback, imageFormat) => {
                 return;
             }
         }
+
     });
 }
 

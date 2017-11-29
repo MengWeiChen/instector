@@ -6,10 +6,30 @@ const electron = window.require('electron')
 import { fabric } from 'fabric';
 import { Slider, Switch } from 'antd';
 import { Button } from 'antd';
+import { setTimeout } from 'timers';
 
 
 class App extends Component {
+  borderSize = 1
+
+  state={
+    isShooting: false,
+    window: {
+      height: 0,
+      width: 0
+    }
+  }
   componentDidMount(){
+    const canvas = new fabric.Canvas('c');
+    this.canvas = canvas;
+    this.resizeCanvas();
+
+    window.addEventListener('resize', (e)=>{
+      canvas.setWidth(e.target.innerWidth - this.borderSize * 2)
+      canvas.setHeight(e.target.innerHeight - this.borderSize * 2)
+      canvas.renderAll();
+    }, true);
+    
     window.addEventListener('keydown', (e)=>{
       var distanceX = window.screenLeft;
       var distanceY = window.screenTop;
@@ -34,83 +54,78 @@ class App extends Component {
         e.preventDefault()
       }
     })
-    const canvas = new fabric.Canvas('c');
+    
 
-    document.documentElement.style.border='1px solid red';
-    document.getElementById("trigger").addEventListener("click", function(){
-      document.documentElement.style.border='initial';
-      fullscreenScreenshot(function(base64data){
-        console.log(fabric);
-        var height = window.innerHeight;
-        var width = window.innerWidth;
-        var distanceX = window.screenLeft;
-        var distanceY = window.screenTop;
-        var screenDimensions = electron.screen.getPrimaryDisplay().size;
-        var screenHeight = screenDimensions.height;
-        var screenWidth = screenDimensions.width;
-        
+  }
+  resizeCanvas = () => {
+    this.canvas.setWidth(window.innerWidth - this.borderSize * 2)
+    this.canvas.setHeight(window.innerHeight  - this.borderSize * 2)
+    this.canvas.renderAll();
+  }
+  shoot = () => {
+    if(this.img){
+      this.canvas.getObjects().forEach((o)=>{
+        this.canvas.remove(o)
+      })
+    }
+    this.setState({isShooting: true})
+    fullscreenScreenshot((base64data)=>{
+      
 
-        fabric.Image.fromURL(base64data, function(img) {
+      var height = window.innerHeight;
+      var width = window.innerWidth;
+      var distanceX = window.screenLeft;
+      var distanceY = window.screenTop;
+      var screenDimensions = electron.screen.getPrimaryDisplay().size;
+      var screenHeight = screenDimensions.height;
+      var screenWidth = screenDimensions.width;
+      
 
+      fabric.Image.fromURL(base64data, (img) => {
+        this.img = img;
+        img.scale(screenWidth / img.width).set({
+          left: -(distanceX +1 ),
+          top: -(distanceY+23),
+          opacity: 0.5,
           
-          img.scale(screenWidth / img.width).set({
-            left: -(distanceX),
-            top: -(distanceY+22),
-            opacity: 0.5,
-            
-          });
-          img.evented=false;
-          canvas.add(img).setActiveObject(img);
         });
-        // console.log(base64data);
-        // var encondedImageBuffer = new Buffer(base64data.replace(/^data:image\/(png|gif|jpeg);base64,/,''), 'base64');
-        // console.log(encondedImageBuffer);
-        // var height = window.innerHeight;
-        // var width = window.innerWidth;
-        // var distanceX = window.screenLeft;
-        // var distanceY = window.screenTop;
-        // var screenDimensions = electron.screen.getPrimaryDisplay().size;
-        // var screenHeight = screenDimensions.height;
-        // var screenWidth = screenDimensions.width;
-        // console.log(Jimp);
-        // Jimp.read(encondedImageBuffer, function (err, image) {
-        //     if (err) throw err;
+        img.evented=false;
+        this.canvas.add(img);
+        this.resizeCanvas()
 
-        //     // Show the original width and height of the image in the console
-        //     console.log(image.bitmap.width, image.bitmap.height);
-
-        //     // Resize the image to the size of the screen
-        //     image.resize(screenWidth, screenHeight)
-        //     // Crop image according to the coordinates
-        //     // add some margin pixels for this example
-        //     image.crop(distanceX+1, distanceY+22+2, width-3, height-6)
-        //     // Get data in base64 and show in img tag
-        //     .getBase64('image/jpeg', function(err,base64data){
-              
-        //         document.getElementById("image-preview").setAttribute("src", base64data);
-        //         //console.log(data);
-        //     });
-        // });
-          
-      },"image/jpeg");
-    },false);
+        this.setState({isShooting: false})
+        
+      });
+    },"image/jpeg");
+  }
+  setOpacity = (value) =>{
+    this.img.set({
+      opacity: value / 100,
+    });
+    this.canvas.renderAll();
   }
   render() {
     const height = window.innerHeight;
     const width = window.innerWidth;
     return (
-      <div className="App">
-        <div style={{ position: 'ansolute', height: 150, backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
-          <div>  
-          <Button type="primary">Primary</Button>
-            <Slider defaultValue={30} />
+      <div className="App" style= {{ 
+          border:`${this.borderSize}px solid`, 
+          borderRadius: '0px 0px 8px 8px',
+          display: this.state.isShooting ? 'none' : 'block',
+
+        }}
+      >
+        <div style={{ position: 'absolute', zIndex: 9, left:0, right: 0, backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
+          <div style={{display: 'flex', margin: 10, alignItems: 'center', justifyContent: 'flex-end' }}>  
+            
+            {this.img ? <Slider style={{flexGrow: 1}} onChange={this.setOpacity} defaultValue={30} />: null}
+            <Button onClick={this.shoot} type="primary">screenshot</Button>
           </div>
+
         </div>
-        <canvas width={width} height={height} id="c" style={{ }}>
+        <canvas id="c">
         </canvas>
-        <img id="image-preview"/>
-        <input id="trigger" value="Fullscreen screenshot" type="button"/>
-      
+        
       </div>
     );
   }

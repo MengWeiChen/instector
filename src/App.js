@@ -2,13 +2,13 @@ import React, { Component } from 'react';
 import logo from './logo.svg';
 import './App.css';
 import { fullscreenScreenshot } from './screenshot'
-const electron = window.require('electron')
 import { fabric } from 'fabric';
 import { Slider, Switch } from 'antd';
 import { Button } from 'antd';
 import { setTimeout } from 'timers';
 import { fromEvent } from 'rxjs/observable/fromEvent'
 import { filter, tap, concatMapTo, take } from 'rxjs/operators'
+const electron = window.require('electron')
 
 
 const calculateLineLong = (x1,x2,y1,y2) => {

@@ -55,10 +55,11 @@ export const fullscreenScreenshot = (callback, imageFormat) => {
     desktopCapturer.getSources({types: ['screen']}, (error, sources) => {
         if (error) throw error;
         // console.log(sources);
+        const cursorScreenPoint = screen.getCursorScreenPoint();
+        const currentDisplay = screen.getDisplayNearestPoint(cursorScreenPoint)
+
         for (let i = 0; i < sources.length; ++i) {
-            console.log(sources);
-            // Filter: main screen
-            if (sources[i].name === "Entire screen" || i == 0) {
+            if (sources[i].id.indexOf(`${currentDisplay.id}`) !== -1) {
                 navigator.webkitGetUserMedia({
                     audio: false,
                     video: {

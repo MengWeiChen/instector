@@ -13,7 +13,12 @@ let mainWindow;
 
 function createWindow() {
     // Create the browser window.
-    mainWindow = new BrowserWindow({width: 800, height: 600, transparent: true, hasShadow: false});
+    mainWindow = new BrowserWindow({
+        width: 800, height: 600, 
+        transparent: true, 
+        hasShadow: false,
+        titleBarStyle : 'hidden-inset'
+    });
     
 
     if (process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true') {

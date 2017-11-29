@@ -1,13 +1,13 @@
 import React, { Component } from 'react';
-import logo from './logo.svg';
 import './App.css';
 import { fullscreenScreenshot } from './screenshot'
 import { fabric } from 'fabric';
-import { Slider, Switch } from 'antd';
+import { Slider,Switch, Icon } from 'antd';
 import { Button } from 'antd';
-import { setTimeout } from 'timers';
 import { fromEvent } from 'rxjs/observable/fromEvent'
-import { filter, tap, concatMapTo, take } from 'rxjs/operators'
+import { filter, tap, concatMapTo, take, takeUntil, map } from 'rxjs/operators'
+
+const ButtonGroup = Button.Group;
 const electron = window.require('electron')
 
 
@@ -25,7 +25,10 @@ class App extends Component {
     window: {
       height: 0,
       width: 0
-    }
+    },
+    opacity: 30,
+    zoom: 0,
+    mode: 'capture'
   }
   componentDidMount(){
     const canvas = new fabric.Canvas('c', { selection: false });
@@ -36,18 +39,45 @@ class App extends Component {
     const keyUp$ = fromEvent(window, 'keyup');
     this.shiftKeyObserver = keyDown$
       .pipe(
-        filter((e)=> e.keyCode == 16),
+        filter((e)=> e.keyCode === 16),
         tap(()=>{
           console.log('a')
           this.shift = true;
         }),
         concatMapTo(keyUp$.pipe(
-          filter((e)=> e.keyCode == 16), 
+          filter((e)=> e.keyCode === 16), 
           tap(()=>{
             this.shift = false;
           }), 
           take(1)))
       ).subscribe(()=>{});
+      /*
+      const titleBarMousedown$ = fromEvent(document.querySelector('#titleBar'), 'mousedown');
+      const mousemove$ = fromEvent(window, 'mousemove');
+      const mouseup$ = fromEvent(window, 'mouseup');
+      console.log(titleBarMousedown$);
+      this.titleBarObserver =  titleBarMousedown$.pipe(
+        map((e)=>({
+          windowX: window.screenLeft,
+          windowY: window.screenTop,
+          screenX: e.screenX,
+          screenY: e.screenY,
+        })),
+        concatMapTo(
+          mousemove$.pipe(
+            takeUntil(mouseup$)
+          ),
+          (down, move) => ({down ,move})
+        ),
+      ).subscribe((e)=>{
+        // const dx = down.clientX 
+        const x = e.down.windowX + (e.move.screenX - e.down.screenX);
+        const y = e.down.windowY + (e.move.screenY - e.down.screenY)
+        electron.remote.getCurrentWindow().setPosition(x, y)
+        console.log(e);
+      });
+      */
+
     
 
 
@@ -91,7 +121,9 @@ class App extends Component {
         left: pointer.x,
         top: pointer.y,
         fontSize: 12,
-        backgroundColor: 'rgba(255, 0, 0, 0.3)'
+        fontFamily: 'sans-serif',
+        backgroundColor: 'rgba(255, 0, 0, 0.3)',
+        fontWeight: 'bold'
       })
       canvas.add(line);
       canvas.add(text);
@@ -152,22 +184,22 @@ class App extends Component {
     window.addEventListener('keydown', (e)=>{
       var distanceX = window.screenLeft;
       var distanceY = window.screenTop;
-      if(e.keyCode == 37){
+      if(e.keyCode === 37){
         // ArrowLeft
         electron.remote.getCurrentWindow().setPosition(distanceX - 1, distanceY)
         e.preventDefault()
       }
-      if(e.keyCode == 38){
+      if(e.keyCode === 38){
         // ArrowUp
         electron.remote.getCurrentWindow().setPosition(distanceX, distanceY - 1)
         e.preventDefault()
       }
-      if(e.keyCode == 39){
+      if(e.keyCode === 39){
         // ArrowRight
         electron.remote.getCurrentWindow().setPosition(distanceX + 1, distanceY)
         e.preventDefault()
       }
-      if(e.keyCode == 40){
+      if(e.keyCode === 40){
         // ArrowDown
         electron.remote.getCurrentWindow().setPosition(distanceX, distanceY + 1)
         e.preventDefault()
@@ -185,18 +217,12 @@ class App extends Component {
     this.canvas.renderAll();
   }
   shoot = () => {
-    if(this.img){
-      this.canvas.clear()
-      // this.canvas.getObjects().forEach((o) => {
-      //   this.canvas.remove(o);
-      // })
-    }
+    this.canvas.clear()
     this.setState({isShooting: true})
     fullscreenScreenshot((base64data)=>{
       
 
-      var height = window.innerHeight;
-      var width = window.innerWidth;
+
       var distanceX = window.screenLeft > window.screen.width ?  window.screenLeft - window.screen.availLeft : window.screenLeft  ;
       var distanceY = window.screenTop;
 
@@ -204,15 +230,16 @@ class App extends Component {
       const currentDisplay = electron.screen.getDisplayNearestPoint(cursorScreenPoint)
 
       var screenDimensions = currentDisplay.size;
-      var screenHeight = screenDimensions.height;
+      // var screenHeight = screenDimensions.height;
       var screenWidth = screenDimensions.width;
       
       fabric.Image.fromURL(base64data, (img) => {
         this.img = img;
-        img.scale(screenWidth / img.width).set({
+        this.img.resizeZoom = screenWidth / img.width;
+        img.scale(this.img.resizeZoom).set({
           left: -(distanceX +1 ),
-          top: -(distanceY+23),
-          opacity: 0.5,
+          top: -(distanceY+23 - 22),
+          opacity: this.state.opacity / 100,
           
         });
         img.evented=false;
@@ -224,28 +251,79 @@ class App extends Component {
       });
     },"image/jpeg");
   }
-  setOpacity = (value) =>{
+  clear = () => {
+    this.canvas.clear();
+    this.img = false;
+    this.setState({});
+  }
+  setOpacity = (value) => {
     this.img.set({
       opacity: value / 100,
     });
     this.canvas.renderAll();
+    this.setState({opacity: value})
+  }
+  setZoom = (value) => {
+    console.log(value);
+    const zoom = value / 50 * 0.5 + 1 ;
+    
+    this.img.scale(this.img.resizeZoom * zoom);
+    this.canvas.renderAll();
+  }
+  setSlwaysOnTop = (value) => {
+    electron.remote.getCurrentWindow().setAlwaysOnTop(value)
+  }
+  changeMode = () => {
+    const mode = this.state.mode == 'capture' ? 'edit' : 'capture';
+    this.setState({mode});
+    if(mode == 'edit'){
+      this.canvas.setActiveObject(this.img);
+      this.img.evented=true;
+    }else{
+      this.img.evented=false;
+    }
   }
   render() {
-    const height = window.innerHeight;
-    const width = window.innerWidth;
     return (
       <div className="App" style= {{ 
           border:`${this.borderSize}px solid`, 
           borderRadius: '0px 0px 8px 8px',
           display: this.state.isShooting ? 'none' : 'block',
-
         }}
       >
-        <div style={{ position: 'absolute', zIndex: 9, left:0, right: 0, backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
-          <div style={{display: 'flex', margin: 10, alignItems: 'center', justifyContent: 'flex-end' }}>  
-            {this.img ? <Slider style={{flexGrow: 1}} onChange={this.setOpacity} defaultValue={30} />: null}
-            <Button onClick={this.shoot} type="primary">screenshot</Button>
+        <div style={{ position: 'absolute', zIndex: 9, left:0, right: 0, }}>
+          <div id="titleBar" style={{ display: 'flex', justifyContent: 'flex-end',padding: 5, backgroundColor: 'rgba(0, 0, 0, 0.9)', height: 32 }}>  
+            <Switch onChange={this.setSlwaysOnTop} checkedChildren="on" unCheckedChildren="off"  />
           </div>
+          {
+            this.state.mode == 'capture' ?
+            <div style={{display: 'flex', padding: 10, alignItems: 'center', justifyContent: 'flex-end',  backgroundColor: 'rgba(0, 0, 0, 0.4)'  }}>  
+              {this.img ? <Slider style={{flexGrow: 1}} onChange={this.setOpacity} value={this.state.opacity} />: null}
+              {this.img ? <Button onClick={this.changeMode} style={{margin: '0px 12px'}} icon="tool" >
+                edit
+                </Button>: null}
+              {this.img ? 
+                <ButtonGroup>
+                  
+                  <Button onClick={this.clear} type="primary"> clear </Button>
+                  <Button onClick={this.shoot} type="primary"> screenshot </Button>
+                </ButtonGroup>
+                :
+                <Button onClick={this.shoot} type="primary">screenshot</Button>}
+                
+              
+            </div> 
+            :
+            <div style={{display: 'flex', padding: 10, alignItems: 'center', justifyContent: 'flex-end',  backgroundColor: 'rgba(0, 0, 0, 0.4)'  }}>  
+              <Slider style={{flexGrow: 1}} onChange={this.setOpacity} value={this.state.opacity} />
+              <Slider style={{flexGrow: 1}} onChange={this.setZoom}  defaultValue={0} max={50} min={-50} step={0.1} />
+              <Button onClick={this.changeMode} style={{margin: '0px 5px'}} icon="tool" >
+                Done
+              </Button>
+            </div> 
+
+          }
+          
         </div>
         <canvas id="c">
         </canvas>

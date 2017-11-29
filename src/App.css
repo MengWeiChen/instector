@@ -27,3 +27,13 @@
 body{
   background-color: transparent;
 }
+
+#titleBar{
+  -webkit-user-select: none;
+  -webkit-app-region: drag;
+}
+
+
+.ant-tabs-bar{
+  margin: 0px;
+}

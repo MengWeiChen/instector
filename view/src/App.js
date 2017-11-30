@@ -2,10 +2,10 @@ import React, { Component } from 'react';
 import './App.css';
 import { fullscreenScreenshot } from './screenshot'
 import { fabric } from 'fabric';
-import { Slider,Switch, Icon } from 'antd';
+import { Slider,Switch } from 'antd';
 import { Button } from 'antd';
 import { fromEvent } from 'rxjs/observable/fromEvent'
-import { filter, tap, concatMapTo, take, takeUntil, map } from 'rxjs/operators'
+import { filter, tap, concatMapTo, take, takeUntil } from 'rxjs/operators'
 
 const ButtonGroup = Button.Group;
 const electron = window.require('electron')
@@ -28,7 +28,8 @@ class App extends Component {
     },
     opacity: 30,
     zoom: 0,
-    mode: 'capture'
+    mode: 'capture',
+    preImg: null,
   }
   componentDidMount(){
     const canvas = new fabric.Canvas('c', { selection: false });
@@ -41,7 +42,6 @@ class App extends Component {
       .pipe(
         filter((e)=> e.keyCode === 16),
         tap(()=>{
-          console.log('a')
           this.shift = true;
         }),
         concatMapTo(keyUp$.pipe(
@@ -51,69 +51,87 @@ class App extends Component {
           }), 
           take(1)))
       ).subscribe(()=>{});
-      
     
+    const canvasMouseDown$ = fromEvent(canvas, 'mouse:down');
+    const canvasMouseMove$ = fromEvent(canvas, 'mouse:move');
+    const canvasMouseUp$ = fromEvent(canvas, 'mouse:up');
 
-
-    let line, isDown, text, sl1, sl2;
-    canvas.on('mouse:down', (o)=>{
-      //if(!this.img) return;
-      if(line){
-        this.canvas.remove(line);
-        this.canvas.remove(text);
-        this.canvas.remove(sl1);
-        this.canvas.remove(sl2);
-      }
-      isDown = true;
+    let line, text, sl1, sl2;
+    this.slObserver = canvasMouseDown$.pipe(
+      filter(() => this.state.mode === 'capture'),
+      tap(o => {
+        if(line){
+          this.canvas.remove(line);
+          this.canvas.remove(text);
+          this.canvas.remove(sl1);
+          this.canvas.remove(sl2);
+        }
+        var pointer = canvas.getPointer(o.e);
+        var points = [ pointer.x, pointer.y, pointer.x, pointer.y ];
+        line = new fabric.Line(points, {
+          strokeWidth: 1,
+          fill: 'red',
+          stroke: 'red',
+          originX: 'center',
+          originY: 'center'
+        });
+  
+        sl1 = new fabric.Line([points[0], points[1]-5, points[2], points[3]+5], {
+          strokeWidth: 1,
+          fill: 'red',
+          stroke: 'red',
+          originX: 'center',
+          originY: 'center'
+        });
+  
+        sl2 = new fabric.Line([points[0], points[1], points[2]-5, points[3]+5], {
+          strokeWidth: 1,
+          fill: 'red',
+          stroke: 'red',
+          originX: 'center',
+          originY: 'center'
+        });
+  
+        text = new fabric.Text('1', {
+          left: pointer.x,
+          top: pointer.y,
+          fontSize: 12,
+          fontFamily: 'sans-serif',
+          backgroundColor: 'rgba(255, 0, 0, 0.8)',
+          fontWeight: 'bold'
+        })
+        canvas.add(line);
+        canvas.add(text);
+        canvas.add(sl1);
+        canvas.add(sl2);
+      }),
+      concatMapTo(canvasMouseMove$.pipe(
+        takeUntil(canvasMouseUp$.pipe(
+          take(1),
+          tap(e=>{
+            const long = calculateLineLong(line.x1, line.x2, line.y1, line.y2);
+            if (long < 1) {
+              canvas.remove(line);
+              canvas.remove(text);
+              canvas.remove(sl1);
+              canvas.remove(sl2);
+              line = false;
+              text = false;
+              sl1 = false;
+              sl2 = false;
+            }
+          })
+        ))
+      ))
+    ).subscribe(o => {
       var pointer = canvas.getPointer(o.e);
-      var points = [ pointer.x, pointer.y, pointer.x, pointer.y ];
-      line = new fabric.Line(points, {
-        strokeWidth: 1,
-        fill: 'red',
-        stroke: 'red',
-        originX: 'center',
-        originY: 'center'
-      });
+      const { x1, y1 } = line;
+      const dx = Math.abs(x1 - pointer.x);
+      const dy = Math.abs(y1 - pointer.y);
 
-      sl1 = new fabric.Line([points[0], points[1]-5, points[2], points[3]+5], {
-        strokeWidth: 1,
-        fill: 'red',
-        stroke: 'red',
-        originX: 'center',
-        originY: 'center'
-      });
-
-      sl2 = new fabric.Line([points[0], points[1], points[2]-5, points[3]+5], {
-        strokeWidth: 1,
-        fill: 'red',
-        stroke: 'red',
-        originX: 'center',
-        originY: 'center'
-      });
-
-      text = new fabric.Text('1', {
-        left: pointer.x,
-        top: pointer.y,
-        fontSize: 12,
-        fontFamily: 'sans-serif',
-        backgroundColor: 'rgba(255, 0, 0, 0.8)',
-        fontWeight: 'bold'
-      })
-      canvas.add(line);
-      canvas.add(text);
-      canvas.add(sl1);
-      canvas.add(sl2);
-    });
-    canvas.on('mouse:move', (o)=>{
-      if (!isDown) return;
-      
-      var pointer = canvas.getPointer(o.e);
       if (this.shift){
         line.set({ x2: pointer.x, y2: pointer.y });
       }else{
-        const { x1, y1 } = line;
-        const dx = Math.abs(x1 - pointer.x);
-        const dy = Math.abs(y1 - pointer.y);
         if(dx > dy){
           // 橫向
           sl1.set({ x1: line.x1, x2:line.x1, y1: line.y1 + 5, y2: line.y1 -5 })
@@ -125,28 +143,16 @@ class App extends Component {
           sl2.set({ x1: line.x1 +5 , x2:line.x1 -5, y1: pointer.y, y2: pointer.y });
         }
       }
-      const long = calculateLineLong(line.x1, line.x2, line.y1, line.y2);
 
-      text.set('text', `${long} px`);
+      const long = calculateLineLong(line.x1, line.x2, line.y1, line.y2);
+      text.set({
+        text: `${long} px`,
+        left: ((line.x1 + line.x2) / 2) - ((dx > dy) ? (text.width/2) : -5),
+        top: ((line.y1 + line.y2) / 2) - ((dx > dy) ? -5 : (text.height/2)),
+      });
 
       canvas.renderAll();
-    });
-    
-    canvas.on('mouse:up', (o)=>{
-      isDown = false;
-      const long = calculateLineLong(line.x1, line.x2, line.y1, line.y2);
-      if (long < 1) {
-        canvas.remove(line);
-        canvas.remove(text);
-        canvas.remove(sl1);
-        canvas.remove(sl2);
-        line = false;
-        text = false;
-        sl1 = false;
-        sl2 = false;
-      }
-    });
-
+    })
 
 
     window.addEventListener('resize', (e)=>{
@@ -195,17 +201,14 @@ class App extends Component {
     this.setState({isShooting: true})
     fullscreenScreenshot((base64data)=>{
       
-
-
-      var distanceX = window.screenLeft > window.screen.width ?  window.screenLeft - window.screen.availLeft : window.screenLeft  ;
-      var distanceY = window.screenTop;
-
       const cursorScreenPoint = electron.screen.getCursorScreenPoint();
       const currentDisplay = electron.screen.getDisplayNearestPoint(cursorScreenPoint)
 
-      var screenDimensions = currentDisplay.size;
-      // var screenHeight = screenDimensions.height;
-      var screenWidth = screenDimensions.width;
+      const distanceX = window.screenLeft - currentDisplay.bounds.x;
+      const distanceY = window.screenTop - currentDisplay.bounds.y;
+
+      const screenDimensions = currentDisplay.size;
+      const screenWidth = screenDimensions.width;
       
       fabric.Image.fromURL(base64data, (img) => {
         this.img = img;
@@ -227,8 +230,10 @@ class App extends Component {
   }
   clear = () => {
     this.canvas.clear();
+    const preImg = this.img;
     this.img = false;
-    this.setState({});
+    this.setState({preImg});
+    
   }
   setOpacity = (value) => {
     this.img.set({
@@ -244,18 +249,23 @@ class App extends Component {
     this.img.scale(this.img.resizeZoom * zoom);
     this.canvas.renderAll();
   }
-  setSlwaysOnTop = (value) => {
+  setAlwaysOnTop = (value) => {
     electron.remote.getCurrentWindow().setAlwaysOnTop(value)
   }
   changeMode = () => {
-    const mode = this.state.mode == 'capture' ? 'edit' : 'capture';
+    const mode = this.state.mode === 'capture' ? 'edit' : 'capture';
     this.setState({mode});
-    if(mode == 'edit'){
+    if(mode === 'edit'){
       this.canvas.setActiveObject(this.img);
       this.img.evented=true;
     }else{
       this.img.evented=false;
     }
+  }
+  revertImg = () => {
+    this.canvas.add(this.state.preImg);
+    this.img = this.state.preImg;
+    this.setState({preImg: null});
   }
   render() {
     return (
@@ -266,11 +276,11 @@ class App extends Component {
         }}
       >
         <div style={{ position: 'absolute', zIndex: 9, left:0, right: 0, }}>
-          <div id="titleBar" style={{ display: 'flex', justifyContent: 'flex-end',padding: 5, backgroundColor: 'rgba(0, 0, 0, 0.9)', height: 32 }}>  
-            <Switch onChange={this.setSlwaysOnTop} checkedChildren="on" unCheckedChildren="off"  />
+          <div id="titleBar" style={{ alignItems: 'center', display: 'flex', justifyContent: 'flex-end',padding: 5, backgroundColor: 'rgba(0, 0, 0, 0.9)', height: 32 }}>  
+            <span style={{color: 'white', marginRight: 5}}> AlwaysOnTop </span>
+            <Switch style={{marginRight: 5}} onChange={this.setAlwaysOnTop} checkedChildren="on" unCheckedChildren="off"  />
           </div>
-          {
-            this.state.mode == 'capture' ?
+          { this.state.mode === 'capture' ?
             <div style={{display: 'flex', padding: 10, alignItems: 'center', justifyContent: 'flex-end',  backgroundColor: 'rgba(0, 0, 0, 0.4)'  }}>  
               {this.img ? <Slider style={{flexGrow: 1}} onChange={this.setOpacity} value={this.state.opacity} />: null}
               {this.img ? <Button onClick={this.changeMode} style={{margin: '0px 12px'}} icon="tool" >
@@ -278,12 +288,15 @@ class App extends Component {
                 </Button>: null}
               {this.img ? 
                 <ButtonGroup>
-                  
                   <Button onClick={this.clear} type="primary"> clear </Button>
                   <Button onClick={this.shoot} type="primary"> screenshot </Button>
                 </ButtonGroup>
                 :
-                <Button onClick={this.shoot} type="primary">screenshot</Button>}
+                <ButtonGroup>
+                  { this.state.preImg ? <Button onClick={this.revertImg} type="primary"> revert </Button> : null}
+                  <Button onClick={this.shoot} type="primary"> screenshot </Button>
+                </ButtonGroup>
+              }
             </div> 
             :
             <div style={{display: 'flex', padding: 10, alignItems: 'center', justifyContent: 'flex-end',  backgroundColor: 'rgba(0, 0, 0, 0.4)'  }}>  
@@ -293,7 +306,6 @@ class App extends Component {
                 Done
               </Button>
             </div> 
-
           }
           
         </div>
